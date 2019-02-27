@@ -11,10 +11,10 @@ pums <- read.csv(file="../../cs208/data/FultonPUMS5sample100.csv")
 #set.seed(123)
 n <- 100        # Dataset size
 k.trials <- 2*n  # Number of queries
-#q.size <- 30    # subset size, we're using predicates to query here though
+#q.size <- 50    # subset size, we're using predicates to query here though
 sigma <- 1
 num_samples <- 10
-num_sigmas <- 101
+num_roundings <- 100
 prime <- 137
 
 #### Get Data ####
@@ -34,15 +34,16 @@ for (i in 1:dim(pums)[1]) {
   pums_list = list.append(pums_list, pums[i,])
 }
 
-compute_predicate <- function(vec) {
+compute_predicate <- function(vec, r_nums) {
   return((sum(vec * r_nums) %% prime) %% 2)
 }
 
 #### Here is our seemingly innocuous aggregated query ####
 query <- function(n, data){
   r_nums <- sample(1:prime, dim(pums)[2])
-  predicates <- lapply(pums_list, compute_predicate)
+  predicates <- lapply(pums_list, compute_predicate, r_nums)
   index <- which(predicates == 1)
+  #index = sample(1:length(data), n)
   subset <- data[index]
   sum <- round(sum(subset)/which_round)*which_round
   return(list(sum=sum, index=index))
@@ -111,17 +112,17 @@ for (j in 1:num_roundings) {
   }
 }
 #filling in the sparse areas of the graph with this number of points
-num_filling = 9
+num_filling = 5
 avg.frac = vector('numeric', num_roundings + num_filling)
 count = 0
 for (j in 1:num_roundings) {
   avg.frac[j + count] = mean(true.frac[j])
-  if (j > 12 && j < num_filling + 13) {
+  if (j > 29 && j < num_filling + 30) {
     avg.frac[j+count+1] = (avg.frac[j+count] + mean(true.frac[j+1]))/2
     count = count+1
   }
 }
-inserted_values = c(12.5, 13.5, 14.5, 15.5, 16.5, 17.5, 18.5, 19.5, 20.5)
+inserted_values = c(29.5, 30.5, 31.5, 32.5, 33.5)
 round_to = sort(c(round_to, inserted_values))
 
 plot(round_to, avg.frac, xlab = "number rounded to", ylab = "fraction correct", ylim = c(0,1), col = "red")

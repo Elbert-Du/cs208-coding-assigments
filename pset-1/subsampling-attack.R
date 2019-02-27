@@ -11,10 +11,10 @@ pums <- read.csv(file="../../cs208/data/FultonPUMS5sample100.csv")
 #set.seed(123)
 n <- 100        # Dataset size
 k.trials <- 2*n  # Number of queries
-#q.size <- 30    # subset size, we're using predicates to query here though
+#q.size <- 50    # subset size, we're using predicates to query here though
 sigma <- 1
 num_samples <- 10
-num_sigmas <- 101
+num_subsamples <- 100
 prime <- 137
 
 #### Get Data ####
@@ -41,8 +41,9 @@ compute_predicate <- function(vec) {
 #### Here is our seemingly innocuous aggregated query ####
 query <- function(n, data, subsample){
   r_nums <- sample(1:prime, dim(pums)[2])
-  predicates <- lapply(pums_list, compute_predicate)
+  predicates <- lapply(pums_list, compute_predicate, r_nums)
   index <- which(predicates == 1)
+  #index = sample(1:length(data), n)
   m = length(subsample)
   subsetIndex = intersect(subsample, index)
   subset <- data[subsetIndex]

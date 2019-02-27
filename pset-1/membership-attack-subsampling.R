@@ -17,11 +17,13 @@ pums <- read.csv(file="../../cs208/data/FultonPUMS5full.csv")
 #### Parameters ####
 set.seed(123)
 num_people <- 1000
-k.attributes <- 200
+k.attributes <- num_people*0.1
 n.sims<- 10000
-n.samples <- 10
+n.samples <- 50
 null.sims <- 1000
 prime <- 137
+subsample_size <- num_people/2 #restricting the reconstruction accuracy to about 0.5 to match the others
+
 sampleIndex <- sample(x=1:nrow(pums), size=num_people, replace = FALSE )
 pums = pums[sampleIndex,]
 ## Generate underlying population attributes
@@ -29,8 +31,8 @@ pums = pums[sampleIndex,]
 #population.mean <- 2*(population.prob-0.5)              # Because we are recoding to {-1,1} in next function
 
 #instead we read in a sample of PUMS data for our null
-var <- "uscitizen"
-my.pi <- mean(pums[,var])
+#var <- "uscitizen"
+#my.pi <- mean(pums[,var])
 #sampleIndex <- sample(x=1:nrow(pums), size=k.attributes, replace = FALSE )
 
 
@@ -50,9 +52,12 @@ compute_predicate <- function() {
   predicates <- lapply(pums_list, FUN = compute_predicate_value, r_nums)
   return(predicates)
 }
+population.values <- matrix(nrow = num_people, ncol = k.attributes)
 population.prob <- vector(mode = "numeric", length = k.attributes)
 for (i in 1:k.attributes) {
-  population.prob[i] <- mean(as.single(compute_predicate()), mode="integer")
+  population.values[,i] <- as.single(compute_predicate())
+  population.prob[i] <- mean(population.values[,i])
+  population.values[,i] <- 2*(population.values[,i]-0.5)
 }
 population.mean <- 2*(population.prob-0.5)
 
@@ -75,7 +80,7 @@ test.Homer <- function(alice, sample.mean, population.mean, referent){
 }
 
 # This is the Dwork et al. test using the population means
-test.Dwork <- function(alice, sample.mean, population.mean, referent){
+test.Dwork <- function(alice, sample.mean, population.mean, referent  = NA){
   test.statistic <- sum(alice * sample.mean) - sum(population.mean * sample.mean)
   return(test.statistic)
 }
@@ -103,6 +108,12 @@ nullDistribution <- function(null.sims=1000, alpha=0.05, fun, population.prob){
   return(list(nullDist=nullDistribution, criticalVal=criticalValue))
 }
 
+add_noise <- function(my_sample, population) {
+  subsampleIndex = sample(1:dim(population)[1], subsample_size) #Since we're generating the data using a random bernoulli I can't generate a fixed subsample of the original data. This has the same effect.
+  subsample = population[intersect(my_sample, subsampleIndex),]
+  new_mean <- apply(subsample, MARGIN=2, FUN=mean)
+  return(new_mean)
+}
 
 ## Visualize the null distribution
 
@@ -120,16 +131,16 @@ showdist <- function(x,criticalvalue, main="", bw="nrd0"){
   text(x=criticalvalue, y=0.8*max(testdens$y), labels=paste(" IN"), pos=4)
   text(x=criticalvalue, y=0.7*max(testdens$y), labels=paste(accept.frac), pos=4)
 }
-
-
-## Find the null distribution for test1
-output <- nullDistribution(fun=test.Homer, population.prob=population.prob)
-testdist <- output$nullDist
-criticalValue <- output$criticalVal
-showdist(testdist, criticalValue, main="Null Distribution with Critical Value")
-
-#### Export graph to .pdf ####
-dev.copy2pdf(file="nullDistribution.pdf")
+# 
+# 
+# ## Find the null distribution for test1
+# output <- nullDistribution(fun=test.Homer, population.prob=population.prob)
+# testdist <- output$nullDist
+# criticalValue <- output$criticalVal
+# showdist(testdist, criticalValue, main="Null Distribution with Critical Value")
+# 
+# #### Export graph to .pdf ####
+# dev.copy2pdf(file="nullDistribution.pdf")
 
 
 
@@ -139,22 +150,33 @@ dev.copy2pdf(file="nullDistribution.pdf")
 history <- matrix(NA, nrow=n.sims, ncol=9)														# Matrix to store results
 
 myalpha <- sqrt(log(num_people)/(num_people*log(10)))
+#this is what we get from n=num_people, d = n, and delta = 1/(10n)
+
+
 #nullDist.Homer<-nullDistribution(fun=test.Homer, population.prob=population.prob, alpha=myalpha)	# Find null distributions
 nullDist.Dwork<-nullDistribution(fun=test.Dwork, population.prob=population.prob, alpha=myalpha)
 
+
+#For this we will not simulate data since it doesn't work for subsampling.
+#This also lets us do the test for T
+
 for(i in 1:n.sims){
-  # Simulate data
-  sample <- rmvbernoulli(n=n.samples, prob=population.prob)
-  sample.mean <- apply(sample, MARGIN=2, FUN=mean)
-  alice <- sample[1,]
-  nullAlice <- rmvbernoulli(n=1, prob=population.prob)
-  referent <- rmvbernoulli(n=1, prob=population.prob)
+  sampleIndex <- sample(1:num_people, n.samples)
+  #sample.mean <- apply(sample, MARGIN=2, FUN=mean)
+  alice <- population.values[sampleIndex[1],]
+  nullAlice <- population.values[sample(setdiff(1:num_people,sampleIndex), 1),] #Pick somebody from the population who is not in the sample.
+  #referent <- rmvbernoulli(n=1, prob=population.prob)
+  
+  
+  noisy_sample.mean = add_noise(sampleIndex, population.values)
+  
+  
   
   # Conduct tests
   #test.alice.Homer <- test.Homer(alice=alice, sample.mean=sample.mean, population.mean=population.mean, referent=referent)
-  test.alice.Dwork <- test.Dwork(alice=alice, sample.mean=sample.mean, population.mean=population.mean, referent=referent)
+  test.alice.Dwork <- test.Dwork(alice=alice, sample.mean=noisy_sample.mean, population.mean=population.mean)
   #test.nullAlice.Homer <- test.Homer(alice=nullAlice, sample.mean=sample.mean, population.mean=population.mean, referent=referent)
-  test.nullAlice.Dwork <- test.Dwork(alice=nullAlice, sample.mean=sample.mean, population.mean=population.mean, referent=referent)
+  test.nullAlice.Dwork <- test.Dwork(alice=nullAlice, sample.mean=noisy_sample.mean, population.mean=population.mean)
   
   # Store simulated values
   history[i,1]<-i
@@ -181,7 +203,7 @@ abline(v=Tvalue, col="red", lty=2)
 showdist(history[,8], criticalvalue=nullDist.Dwork$criticalVal, main="Dwork Null", bw=1)
 abline(v=Tvalue, col="red", lty=2)
 
-dev.copy2pdf(file="membershipAttack.pdf")
+dev.copy2pdf(file="membershipAttack-subsampling-1000.pdf")
 
 
 

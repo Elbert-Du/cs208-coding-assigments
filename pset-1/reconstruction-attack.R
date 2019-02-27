@@ -11,7 +11,7 @@ pums <- read.csv(file="../../cs208/data/FultonPUMS5sample100.csv")
 #set.seed(123)
 n <- 100        # Dataset size
 k.trials <- 2*n  # Number of queries
-#q.size <- 30    # subset size, we're using predicates to query here though
+#q.size <- 50    # subset size, we're using predicates to query here though
 sigma <- 1
 num_samples <- 10
 num_sigmas <- 101
@@ -39,14 +39,11 @@ compute_predicate <- function(vec) {
 }
 
 #### Here is our seemingly innocuous aggregated query ####
-query <- function(data){
+query <- function(n, data){
   r_nums <- sample(1:prime, dim(pums)[2])
-  predicates <- lapply(pums_list, compute_predicate)
-  #predicates <- vector(length = dim(pums[sampleIndex,])[1])
-  #for (i in 1:dim(pums)[1]) {
-  #  predicates[i] = (sum(pums[i,] * r_nums) %% prime) %% 2
-  #}
+  predicates <- lapply(pums_list, compute_predicate, r_nums)
   index <- which(predicates == 1)
+  #index <- sample(1:length(data), n)
   subset <- data[index]
   sum <- sum(subset) + rnorm(n=1, mean=0, sd=sigma)
   return(list(sum=sum, index=index))
@@ -68,7 +65,7 @@ for (j in 1:num_sigmas) {
     history <- matrix(NA, nrow=k.trials, ncol=n+1)            # a matrix to store results in
     
     for(i in 1:k.trials){
-      res <- query(data=sensitiveData)
+      res <- query(n = q.size, data=sensitiveData)
       indicator <- 1:n %in% res$index                         # convert indices into a series of boolean/dummy variables
       indicator <- as.numeric(indicator)
       history[i,] <- c(res$sum, indicator)                    # save into our results matrix
